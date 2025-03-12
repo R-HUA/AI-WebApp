@@ -1,0 +1,41 @@
+server:
+  port: 8080
+  
+spring:
+  application:
+    name: image-gallery
+    
+  # 数据库配置
+  datasource:
+    url: jdbc:h2:file:./data/gallery
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+    
+  # JPA配置
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    
+  # H2控制台配置
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      
+  # 文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+      
+# 自定义配置
+gallery:
+  thumbnail:
+    width: 300
+    quality: 0.75
+  cache:
+    directory: cache
+    max-age: 7d 
