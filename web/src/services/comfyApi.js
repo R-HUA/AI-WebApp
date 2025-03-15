@@ -13,6 +13,9 @@ class ComfyApi {
       onExecuted: null,
       onError: null
     };
+    this.useWebSocket = true; // 是否使用WebSocket
+    this.pollingInterval = null; // 轮询间隔ID
+    this.pollingDelay = 1000; // 轮询延迟（毫秒）
     this.setupWebSocket();
   }
 
@@ -46,6 +49,9 @@ class ComfyApi {
       
       this.ws.onopen = () => {
         console.log('WebSocket连接已建立');
+        this.useWebSocket = true;
+        // 如果有轮询，停止轮询
+        this.stopPolling();
       };
       
       this.ws.onmessage = (event) => {
@@ -93,6 +99,7 @@ class ComfyApi {
       
       this.ws.onerror = (error) => {
         console.error('WebSocket错误:', error);
+        this.useWebSocket = false;
         if (this.wsCallbacks.onError) {
           this.wsCallbacks.onError(error);
         }
@@ -100,11 +107,13 @@ class ComfyApi {
       
       this.ws.onclose = () => {
         console.log('WebSocket连接已关闭');
+        this.useWebSocket = false;
         // 尝试重新连接
         setTimeout(() => this.setupWebSocket(), 5000);
       };
     } catch (error) {
       console.error('设置WebSocket连接失败:', error);
+      this.useWebSocket = false;
     }
   }
 
@@ -182,6 +191,71 @@ class ComfyApi {
     }
   }
 
+  // 开始HTTP轮询
+  startPolling(promptId) {
+    if (this.pollingInterval) {
+      this.stopPolling();
+    }
+    
+    console.log('开始HTTP轮询获取进度和结果');
+    
+    // 记录上次进度
+    let lastProgress = 0;
+    
+    this.pollingInterval = setInterval(async () => {
+      try {
+        // 获取队列状态
+        const queueStatus = await this.getQueue();
+        
+        // 检查队列中是否有我们的任务
+        const ourPrompt = queueStatus.queue_running.find(item => item.prompt_id === promptId);
+        
+        if (ourPrompt) {
+          // 任务正在运行，获取进度
+          if (ourPrompt.execution_status && ourPrompt.execution_status.processing_node) {
+            const node = ourPrompt.execution_status.processing_node;
+            const progress = {
+              value: ourPrompt.execution_status.current_step || 0,
+              max: ourPrompt.execution_status.total_steps || 1,
+              node: node
+            };
+            
+            // 只有当进度变化时才回调
+            if (progress.value !== lastProgress) {
+              lastProgress = progress.value;
+              if (this.wsCallbacks.onProgress) {
+                this.wsCallbacks.onProgress(progress);
+              }
+            }
+          }
+        } else {
+          // 检查任务是否已完成
+          const history = await this.getHistory();
+          if (history[promptId]) {
+            // 任务已完成
+            if (this.wsCallbacks.onExecuted) {
+              this.wsCallbacks.onExecuted({
+                prompt_id: promptId,
+                ...history[promptId]
+              });
+            }
+            this.stopPolling();
+          }
+        }
+      } catch (error) {
+        console.error('轮询过程中出错:', error);
+      }
+    }, this.pollingDelay);
+  }
+
+  // 停止HTTP轮询
+  stopPolling() {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
+  }
+
   // 创建工作流并提交
   async generateImage(params) {
     try {
@@ -197,6 +271,11 @@ class ComfyApi {
       // 提交工作流
       const response = await this.client.post('/prompt', requestData);
       const promptId = response.data.prompt_id;
+      
+      // 如果WebSocket不可用，启动HTTP轮询
+      if (!this.useWebSocket) {
+        this.startPolling(promptId);
+      }
       
       // 返回提示ID，用于后续查询结果
       return promptId;
@@ -419,6 +498,43 @@ async getImageResult(promptId) {
         reject(new Error('Timeout waiting for image generation'));
       }, 60000); // 60秒超时
       
+      // 如果WebSocket不可用，使用HTTP轮询获取结果
+      if (!this.useWebSocket) {
+        console.log('WebSocket不可用，使用HTTP轮询获取结果');
+        
+        const checkResult = async () => {
+          try {
+            const history = await this.getHistory();
+            const result = history[promptId];
+            
+            if (result && result.outputs) {
+              for (const nodeId in result.outputs) {
+                const nodeOutput = result.outputs[nodeId];
+                if (nodeOutput.images && nodeOutput.images.length > 0) {
+                  const image = nodeOutput.images[0];
+                  const imageUrl = `${this.baseUrl}/view?filename=${image.filename}&subfolder=${encodeURIComponent(image.subfolder || '')}&type=${image.type || 'output'}`;
+                  
+                  clearTimeout(timeout);
+                  resolve(imageUrl);
+                  return;
+                }
+              }
+            }
+            
+            // 如果还没有结果，继续轮询
+            setTimeout(checkResult, 2000);
+          } catch (error) {
+            console.error('HTTP轮询获取结果失败:', error);
+            clearTimeout(timeout);
+            reject(error);
+          }
+        };
+        
+        // 开始轮询检查结果
+        checkResult();
+        return;
+      }
+      
       // 保存原有的回调
       const originalCallbacks = { ...this.wsCallbacks };
       
@@ -487,4 +603,4 @@ async getImageResult(promptId) {
 }
 }
 
-export default new ComfyApi(); 
+export default new ComfyApi();

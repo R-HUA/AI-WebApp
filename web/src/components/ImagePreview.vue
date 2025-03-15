@@ -136,7 +136,7 @@ const confirmClearHistory = async () => {
     <div v-if="imageHistory.length > 0" class="image-history">
       <div class="history-header">
         <h3>历史记录</h3>
-        <el-button type="text" @click="confirmClearHistory" :icon="Delete"></el-button>
+        <el-button text @click="confirmClearHistory" :icon="Delete"></el-button>
       </div>
       <div class="history-images-wrapper">
         <div class="history-images">

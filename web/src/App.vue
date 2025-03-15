@@ -1,13 +1,14 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { ElConfigProvider } from 'element-plus'
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import NavigationTabs from './components/NavigationTabs.vue'
 
-const language = ref('zh-cn')
+const language = ref(zhCn) 
 
 // 主题设置
-const theme = computed(() => {
+const theme = ref(() => {
   return localStorage.getItem('ui-theme') || 'light'
 })
 
@@ -18,36 +19,24 @@ onMounted(() => {
   // 监听主题变化
   window.addEventListener('storage', (event) => {
     if (event.key === 'ui-theme') {
-      applyTheme(event.newValue || 'light')
-    }
-  })
-  
-  // 监听系统主题变化
-  const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)')
-  systemDarkQuery.addEventListener('change', () => {
-    if (theme.value === 'auto') {
-      applyTheme('auto')
+      applyTheme(event.newValue)
     }
   })
 })
 
 // 应用主题
-function applyTheme(themeName) {
+const applyTheme = (themeName) => {
   if (themeName === 'dark') {
     document.documentElement.classList.add('dark-theme')
   } else if (themeName === 'light') {
     document.documentElement.classList.remove('dark-theme')
   } else if (themeName === 'auto') {
-    // 跟随系统
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    if (prefersDark) {
+    // 自动模式 - 根据系统偏好设置
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       document.documentElement.classList.add('dark-theme')
     } else {
       document.documentElement.classList.remove('dark-theme')
     }
-  } else {
-    // 默认为浅色主题
-    document.documentElement.classList.remove('dark-theme')
   }
 }
 </script>

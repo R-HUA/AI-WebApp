@@ -65,7 +65,7 @@ loadPromptHistory()
         </el-tooltip> -->
       </div>
       <div class="input-actions">
-        <el-button type="text" @click="inputValue = ''" :icon="Delete"></el-button>
+        <el-button text @click="inputValue = ''" :icon="Delete"></el-button>
       </div>
     </div>
     

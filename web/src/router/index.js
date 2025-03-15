@@ -3,6 +3,8 @@ import DrawingView from '../views/AigcDrawingView.vue'
 import HistoryView from '../views/HistoryView.vue'
 import HistoryGalleryView from '../views/HistoryGalleryView.vue'
 import ScanDirectories from '../components/ScanDirectories.vue'
+import SettingsView from '../views/SettingsView.vue'
+import GalleryLayout from '../views/GalleryLayout.vue' // 添加导入
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -22,7 +24,8 @@ const router = createRouter({
     {
       path: '/gallery',
       name: 'gallery',
-      redirect: '/gallery/images',
+      component: GalleryLayout, // 添加组件
+      redirect: '/gallery/images', // 确保默认重定向到images子路由
       meta: {
         module: 'gallery'
       },
@@ -43,6 +46,14 @@ const router = createRouter({
           component: ScanDirectories
         }
       ]
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: SettingsView,
+      meta: {
+        module: 'settings'
+      }
     }
   ]
 })
