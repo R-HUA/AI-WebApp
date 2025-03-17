@@ -139,12 +139,12 @@ const handleImageParamsUpdate = (newParams) => {
 .control-panel {
   display: flex;
   flex-direction: column;
-  background-color: var(--card-bg, #fff);
+  background-color: var(--card-bg);
   height: 100%;
   width: 100%;
   overflow: hidden;
-  border-radius: 0.5rem 0.5rem 0 0;
-  transition: all 0.3s ease-in-out;
+  border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+  transition: all var(--transition-normal);
   box-shadow: var(--box-shadow);
 }
 
@@ -152,7 +152,7 @@ const handleImageParamsUpdate = (newParams) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
+  padding: var(--spacing-4);
   cursor: pointer;
   border-bottom: 1px solid var(--border-color);
   background-color: rgba(255, 255, 255, 0.7);
@@ -169,7 +169,7 @@ const handleImageParamsUpdate = (newParams) => {
 }
 
 .panel-toggle {
-  transition: transform 0.3s;
+  transition: transform var(--transition-normal);
   transform: rotate(180deg);
 }
 
@@ -181,12 +181,12 @@ const handleImageParamsUpdate = (newParams) => {
   overflow: hidden;
   flex: 1;
   height: calc(100% - 3.25rem);
-  transition: all 0.3s ease-in-out;
+  transition: all var(--transition-normal);
   position: relative;
 }
 
 .content-inner {
-  padding: 1rem;
+  padding: var(--spacing-4);
   height: 100%;
   overflow-y: auto;
   
@@ -251,18 +251,18 @@ const handleImageParamsUpdate = (newParams) => {
 }
 
 .param-group {
-  margin-bottom: 1rem;
+  margin-bottom: var(--spacing-4);
 }
 
 .param-group-title {
   font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: var(--text-color-secondary);
+  margin-bottom: var(--spacing-2);
+  color: var(--text-color-secondary, var(--text-color-light));
   font-size: 0.875rem;
 }
 
 .image-upload {
-  margin: 1rem 0;
+  margin: var(--spacing-4) 0;
 }
 
 .upload-demo {
@@ -286,7 +286,7 @@ const handleImageParamsUpdate = (newParams) => {
 /* 平板设备 */
 @media (max-width: 1024px) {
   .control-panel {
-    border-radius: 0.375rem 0.375rem 0 0;
+    border-radius: var(--border-radius);
   }
   
   .panel-content {
@@ -294,7 +294,7 @@ const handleImageParamsUpdate = (newParams) => {
   }
   
   .content-inner {
-    padding: 0.875rem;
+    padding: var(--spacing-3);
   }
 }
 

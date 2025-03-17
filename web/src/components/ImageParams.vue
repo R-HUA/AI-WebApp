@@ -64,23 +64,7 @@ const defaultSamplers = computed(() => {
   if (props.availableSamplers.length > 0) {
     return props.availableSamplers
   }
-  return [
-    'Euler',
-    'Euler A',
-    'DPM++ 2M Karras',
-    'DPM++ 2M',
-    'LMS',
-    'Heun',
-    'DPM2',
-    'DPM2 Karras',
-    'DPM++ 2S Karras',
-    'DPM++ 2M SDE Karras',
-    'DPM++ 2M SDE',
-    'DPM++ 3M SDE Karras',
-    'DPM++ 3M SDE',
-    'DPM++ 3M',
-    'DPM++ 3M Karras'
-  ]
+  return ['euler']
 })
 
 // 使用默认模型

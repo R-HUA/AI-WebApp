@@ -58,26 +58,17 @@ onMounted(() => {
   flex-direction: column;
   height: 100%;
   background-color: var(--bg-color);
-}
-
-.gallery-header {
-  padding: 16px 24px;
-  background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.gallery-header h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-color);
+  position: relative;
 }
 
 .gallery-navigation {
   display: flex;
   padding: 0 24px;
-  background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  position: absolute;
+  top: -30px; /* 进一步向上调整位置 */
+  left: 0;
+  right: 0;
+  z-index: 100; /* 大幅提高z-index确保在所有元素上方 */
 }
 
 .nav-item {
@@ -89,15 +80,17 @@ onMounted(() => {
   border-bottom: 2px solid transparent;
   color: var(--text-color-light);
   transition: all 0.3s ease;
-}
-
-.nav-item:hover {
-  color: var(--primary-color);
+  background-color: var(--card-bg);
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.1);
+  transform: translateY(0); /* 确保没有向下位移 */
 }
 
 .nav-item.active {
   color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
+  background-color: var(--primary-light);
+  border-bottom: 2px solid var(--primary-color);
+  z-index: 101; /* 确保活动标签在最上层 */
 }
 
 .nav-item .el-icon {
@@ -109,40 +102,55 @@ onMounted(() => {
   flex: 1;
   overflow: auto;
   padding: 16px 24px;
+  margin-top: 48px; /* 为导航腾出空间 */
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
   .gallery-navigation {
     padding: 0 16px;
+    top: -30px; /* 保持与主样式一致 */
   }
   
   .nav-item {
     padding: 10px 12px;
     font-size: 14px;
+    transform: translateY(0); /* 移除向下位移 */
+  }
+  
+  .nav-item.active {
+    transform: translateY(0); /* 移除向下位移和缩放 */
+    z-index: 101; /* 保持与主样式一致 */
   }
   
   .gallery-content {
     padding: 12px 16px;
+    margin-top: 42px;
   }
 }
 
 @media (max-width: 480px) {
-  .gallery-header {
-    padding: 12px 16px;
-  }
-  
-  .gallery-header h2 {
-    font-size: 18px;
+  .gallery-navigation {
+    top: -30px; /* 保持与主样式一致 */
   }
   
   .nav-item {
     padding: 8px 10px;
     margin-right: 4px;
+    transform: translateY(0); /* 移除向下位移 */
+  }
+  
+  .nav-item.active {
+    transform: translateY(0); /* 移除向下位移和缩放 */
+    z-index: 101; /* 保持与主样式一致 */
   }
   
   .nav-item .el-icon {
     margin-right: 4px;
+  }
+  
+  .gallery-content {
+    margin-top: 38px; /* 调整小屏幕的间距 */
   }
 }
 </style>

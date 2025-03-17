@@ -34,7 +34,7 @@
         <div class="action-footer">
           <div class="param-info">
             <span class="size-info">{{ imageParams.width }}×{{ imageParams.height }}</span>
-            <span class="model-info">{{ imageParams.model }}</span>
+            <span class="model-info">{{ imageParams.model.slice(0, 10) }}</span>
           </div>
           <el-button 
             type="primary" 
@@ -80,9 +80,9 @@ const imageParams = reactive({
   width: 1024,
   height: 1024,
   seed: Math.floor(Math.random() * 1000000000),
-  samplingMethod: localStorage.getItem('default-sampler') || 'DPM++ 2M Karras',
-  steps: 20,
-  cfgScale: 7
+  samplingMethod: localStorage.getItem('default-sampler') || 'euler',
+  steps: 28,
+  cfgScale: 6
 })
 
 // 可用模型和采样器
@@ -284,8 +284,13 @@ const handleReferenceImage = () => {
 
 // 生命周期钩子
 onMounted(async () => {
-  // 加载历史记录
+  // 加载图片历史记录
   imageHistory.value = storageService.getImageHistory()
+
+  // 自动清除24h以上图片历史
+  cleanupOldImages()
+
+  prompt.value = storageService.getPromptHistory().slice(-1)[0] || '' // slice 返回的是一个新数组，取第一个元素
   
   // 尝试获取模型和采样器列表
   fetchModelAndSamplers()
@@ -316,6 +321,28 @@ onMounted(async () => {
   // 加载参考图片（如果有）
   handleReferenceImage()
 })
+
+// 清理24小时以上的历史图片
+const cleanupOldImages = () => {
+  const history = storageService.getImageHistory() || []
+  if (history.length === 0) return
+  
+  const now = new Date().getTime()
+  const oneDayMs = 24 * 60 * 60 * 1000 // 24小时的毫秒数
+  
+  // 过滤出24小时内的图片
+  const recentImages = history.filter(img => {
+    const imgTime = new Date(img.timestamp).getTime()
+    return (now - imgTime) < oneDayMs
+  })
+  
+  // 如果有图片被过滤掉，则更新历史记录
+  if (recentImages.length < history.length) {
+    console.log(`清理了 ${history.length - recentImages.length} 张超过24小时的历史图片`)
+    imageHistory.value = recentImages
+    storageService.saveImageHistory(recentImages)
+  }
+}
 
 // 监听路由变化以处理参考图片
 watch(() => route.params.referenceImage, (newRefImg) => {
@@ -434,4 +461,4 @@ watch(() => route.params.referenceImage, (newRefImg) => {
     height: calc(100vh - 60px);
   }
 }
-</style> 
+</style>

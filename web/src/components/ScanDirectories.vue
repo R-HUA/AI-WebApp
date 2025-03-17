@@ -88,7 +88,7 @@ const loadDirectories = async () => {
     const response = await imageService.getAllDirectories()
     directories.value = response.data
   } catch (error) {
-    ElMessage.error('加载目录列表失败')
+    ElMessage.error('加载目录列表失败' + error)
   } finally {
     loading.value = false
   }

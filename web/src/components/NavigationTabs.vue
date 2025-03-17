@@ -68,7 +68,8 @@ window.addEventListener('storage', (event) => {
   align-items: center;
   padding: 0.4vw 20px;
   background-color: var(--card-bg, #fff);
-  z-index: 10;
+  z-index: 20; /* 增加z-index确保在导航标签之上 */
+  position: relative; /* 添加相对定位 */
 }
 
 .header h1 {
@@ -138,4 +139,4 @@ window.addEventListener('storage', (event) => {
     height: 18px;
   }
 }
-</style> 
+</style>

@@ -16,6 +16,9 @@ class ComfyApi {
     this.useWebSocket = true; // 是否使用WebSocket
     this.pollingInterval = null; // 轮询间隔ID
     this.pollingDelay = 1000; // 轮询延迟（毫秒）
+    this.wsReconnectAttempts = 0; // 添加WebSocket重连尝试次数计数
+    this.maxReconnectAttempts = 3; // 最大重连尝试次数
+    this.forcePollingMode = false; // 是否强制使用轮询模式
     this.setupWebSocket();
   }
 
@@ -30,6 +33,10 @@ class ComfyApi {
       baseURL: url,
     });
     localStorage.setItem('comfyui-api-url', url);
+    // 重置WebSocket连接状态
+    this.wsReconnectAttempts = 0;
+    this.forcePollingMode = false;
+    this.setupWebSocket();
   }
 
   getBaseUrl() {
@@ -43,6 +50,12 @@ class ComfyApi {
 
   // 设置WebSocket连接
   setupWebSocket() {
+    // 如果强制使用轮询模式，则不尝试建立WebSocket连接
+    if (this.forcePollingMode) {
+      this.useWebSocket = false;
+      return;
+    }
+
     try {
       const wsUrl = this.baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
       this.ws = new WebSocket(`${wsUrl}/ws?clientId=${this.clientId}`);
@@ -50,6 +63,7 @@ class ComfyApi {
       this.ws.onopen = () => {
         console.log('WebSocket连接已建立');
         this.useWebSocket = true;
+        this.wsReconnectAttempts = 0; // 重置重连计数
         // 如果有轮询，停止轮询
         this.stopPolling();
       };
@@ -100,7 +114,18 @@ class ComfyApi {
       this.ws.onerror = (error) => {
         console.error('WebSocket错误:', error);
         this.useWebSocket = false;
-        if (this.wsCallbacks.onError) {
+        
+        // 增加重连尝试次数
+        this.wsReconnectAttempts++;
+        
+        // 如果超过最大重连次数，切换到轮询模式并不再尝试WebSocket
+        if (this.wsReconnectAttempts >= this.maxReconnectAttempts) {
+          console.log(`WebSocket连接失败${this.maxReconnectAttempts}次，切换到HTTP轮询模式`);
+          this.forcePollingMode = true;
+        }
+        
+        // 只在第一次错误时通知用户
+        if (this.wsReconnectAttempts === 1 && this.wsCallbacks.onError) {
           this.wsCallbacks.onError(error);
         }
       };
@@ -108,12 +133,26 @@ class ComfyApi {
       this.ws.onclose = () => {
         console.log('WebSocket连接已关闭');
         this.useWebSocket = false;
-        // 尝试重新连接
-        setTimeout(() => this.setupWebSocket(), 5000);
+        
+        // 只有在未强制使用轮询模式且未超过最大重连次数时才尝试重连
+        if (!this.forcePollingMode && this.wsReconnectAttempts < this.maxReconnectAttempts) {
+          console.log(`尝试重新连接WebSocket (${this.wsReconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+          setTimeout(() => this.setupWebSocket(), 5000);
+        } else if (this.wsReconnectAttempts >= this.maxReconnectAttempts) {
+          console.log('已达到最大重连次数，将使用HTTP轮询模式');
+          this.forcePollingMode = true;
+        }
       };
     } catch (error) {
       console.error('设置WebSocket连接失败:', error);
       this.useWebSocket = false;
+      this.wsReconnectAttempts++;
+      
+      // 如果超过最大重连次数，切换到轮询模式
+      if (this.wsReconnectAttempts >= this.maxReconnectAttempts) {
+        console.log('WebSocket连接失败多次，切换到HTTP轮询模式');
+        this.forcePollingMode = true;
+      }
     }
   }
 
@@ -273,7 +312,7 @@ class ComfyApi {
       const promptId = response.data.prompt_id;
       
       // 如果WebSocket不可用，启动HTTP轮询
-      if (!this.useWebSocket) {
+      if (!this.useWebSocket || this.forcePollingMode) {
         this.startPolling(promptId);
       }
       
@@ -489,69 +528,21 @@ class ComfyApi {
     throw new Error('Invalid workflow configuration');
   }
 
-// 获取图像结果
-async getImageResult(promptId) {
-  return new Promise((resolve, reject) => {
-    try {
-      // 设置超时
-      const timeout = setTimeout(() => {
-        reject(new Error('Timeout waiting for image generation'));
-      }, 60000); // 60秒超时
-      
-      // 如果WebSocket不可用，使用HTTP轮询获取结果
-      if (!this.useWebSocket) {
-        console.log('WebSocket不可用，使用HTTP轮询获取结果');
+  // 获取图像结果
+  async getImageResult(promptId) {
+    return new Promise((resolve, reject) => {
+      try {
+        // 设置超时
+        const timeout = setTimeout(() => {
+          reject(new Error('Timeout waiting for image generation'));
+        }, 60000); // 60秒超时
         
-        const checkResult = async () => {
-          try {
-            const history = await this.getHistory();
-            const result = history[promptId];
-            
-            if (result && result.outputs) {
-              for (const nodeId in result.outputs) {
-                const nodeOutput = result.outputs[nodeId];
-                if (nodeOutput.images && nodeOutput.images.length > 0) {
-                  const image = nodeOutput.images[0];
-                  const imageUrl = `${this.baseUrl}/view?filename=${image.filename}&subfolder=${encodeURIComponent(image.subfolder || '')}&type=${image.type || 'output'}`;
-                  
-                  clearTimeout(timeout);
-                  resolve(imageUrl);
-                  return;
-                }
-              }
-            }
-            
-            // 如果还没有结果，继续轮询
-            setTimeout(checkResult, 2000);
-          } catch (error) {
-            console.error('HTTP轮询获取结果失败:', error);
-            clearTimeout(timeout);
-            reject(error);
-          }
-        };
-        
-        // 开始轮询检查结果
-        checkResult();
-        return;
-      }
-      
-      // 保存原有的回调
-      const originalCallbacks = { ...this.wsCallbacks };
-      
-      // 设置新的WebSocket回调
-      this.setWebSocketCallbacks({
-        onProgress: (data) => {
-          // 继续调用原有的进度回调
-          if (originalCallbacks.onProgress) {
-            originalCallbacks.onProgress(data);
-          }
-        },
-        onExecuted: async (data) => {
-          // 检查是否执行完成 - 修复：应该检查是否是相关的promptId
-          if (data.prompt_id === promptId) {
+        // 如果WebSocket不可用或强制使用轮询模式，使用HTTP轮询获取结果
+        if (!this.useWebSocket || this.forcePollingMode) {
+          console.log('使用HTTP轮询获取结果');
+          
+          const checkResult = async () => {
             try {
-              console.log('工作流执行完成，获取结果');
-              // 获取历史记录中的结果
               const history = await this.getHistory();
               const result = history[promptId];
               
@@ -562,8 +553,6 @@ async getImageResult(promptId) {
                     const image = nodeOutput.images[0];
                     const imageUrl = `${this.baseUrl}/view?filename=${image.filename}&subfolder=${encodeURIComponent(image.subfolder || '')}&type=${image.type || 'output'}`;
                     
-                    // 恢复原有回调
-                    this.setWebSocketCallbacks(originalCallbacks);
                     clearTimeout(timeout);
                     resolve(imageUrl);
                     return;
@@ -571,36 +560,86 @@ async getImageResult(promptId) {
                 }
               }
               
-              // 如果执行完成但没有找到图像，可能是出错了
-              console.error('未找到生成的图像:', result);
-              reject(new Error('No image found in generation result'));
+              // 如果还没有结果，继续轮询
+              setTimeout(checkResult, 2000);
             } catch (error) {
-              console.error('获取图像结果失败:', error);
-              reject(error);
-            } finally {
-              // 恢复原有回调
-              this.setWebSocketCallbacks(originalCallbacks);
+              console.error('HTTP轮询获取结果失败:', error);
               clearTimeout(timeout);
+              reject(error);
+            }
+          };
+          
+          // 开始轮询检查结果
+          checkResult();
+          return;
+        }
+        
+        // 保存原有的回调
+        const originalCallbacks = { ...this.wsCallbacks };
+        
+        // 设置新的WebSocket回调
+        this.setWebSocketCallbacks({
+          onProgress: (data) => {
+            // 继续调用原有的进度回调
+            if (originalCallbacks.onProgress) {
+              originalCallbacks.onProgress(data);
+            }
+          },
+          onExecuted: async (data) => {
+            // 检查是否执行完成 - 修复：应该检查是否是相关的promptId
+            if (data.prompt_id === promptId) {
+              try {
+                console.log('工作流执行完成，获取结果');
+                // 获取历史记录中的结果
+                const history = await this.getHistory();
+                const result = history[promptId];
+                
+                if (result && result.outputs) {
+                  for (const nodeId in result.outputs) {
+                    const nodeOutput = result.outputs[nodeId];
+                    if (nodeOutput.images && nodeOutput.images.length > 0) {
+                      const image = nodeOutput.images[0];
+                      const imageUrl = `${this.baseUrl}/view?filename=${image.filename}&subfolder=${encodeURIComponent(image.subfolder || '')}&type=${image.type || 'output'}`;
+                      
+                      // 恢复原有回调
+                      this.setWebSocketCallbacks(originalCallbacks);
+                      clearTimeout(timeout);
+                      resolve(imageUrl);
+                      return;
+                    }
+                  }
+                }
+                
+                // 如果执行完成但没有找到图像，可能是出错了
+                console.error('未找到生成的图像:', result);
+                reject(new Error('No image found in generation result'));
+              } catch (error) {
+                console.error('获取图像结果失败:', error);
+                reject(error);
+              } finally {
+                // 恢复原有回调
+                this.setWebSocketCallbacks(originalCallbacks);
+                clearTimeout(timeout);
+              }
+            }
+          },
+          onError: (error) => {
+            // 发生错误时
+            clearTimeout(timeout);
+            this.setWebSocketCallbacks(originalCallbacks);
+            reject(error);
+            
+            // 调用原有的错误回调
+            if (originalCallbacks.onError) {
+              originalCallbacks.onError(error);
             }
           }
-        },
-        onError: (error) => {
-          // 发生错误时
-          clearTimeout(timeout);
-          this.setWebSocketCallbacks(originalCallbacks);
-          reject(error);
-          
-          // 调用原有的错误回调
-          if (originalCallbacks.onError) {
-            originalCallbacks.onError(error);
-          }
-        }
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
 }
 
 export default new ComfyApi();
